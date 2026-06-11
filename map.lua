@@ -65,7 +65,7 @@ af:SetScript("OnMouseUp", function(self, button)
 end)
 
 function addon.SetupArrow()
-    af.text:SetFont(addon.font, 9,"OUTLINE")
+    af.text:SetFont(addon.font, addon.settings.profile.arrowText or 9, "OUTLINE")
     af:UpdateVisuals()
     af.text:SetTextColor(unpack(addon.activeTheme.textColor))
 
@@ -129,14 +129,14 @@ function addon.DrawArrow(self)
                                                 addon.guideTextColors.default["error"])
             end
             --self.text:SetText(string.format("%s\n(%dyd)",element.title, dist))
-            self.text:SetText(string.format("%s\n(%dyd)",element.title, dist))
+            self.text:SetText(string.format("%s\n(%d m)",element.title, dist))
         elseif title then
             for RXP_ in string.gmatch(title, "RXP_[A-Z]+_") do
                 title = title:gsub(RXP_, addon.guideTextColors[RXP_] or addon.guideTextColors.default["error"])
             end
-            self.text:SetText(string.format("%s\n(%dyd)", title, dist))
+            self.text:SetText(string.format("%s\n(%d m)", title, dist))
         else
-            self.text:SetText(string.format("(%dyd)", dist))
+            self.text:SetText(string.format("(%d m)", dist))
         end
     end
 
