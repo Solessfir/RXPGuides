@@ -18,7 +18,7 @@
 ## Category-ruRU: Задания
 ## Category-zhCN: 任务
 ## Category-zhTW: 任務
-## OptionalDeps: Questie, RXPGuides_Themes
+## OptionalDeps: Questie, RXPGuides_Themes, SharedMedia_MyMedia
 ## SavedVariables: RXPData, RXPDB, RXPSettings, RXPString
 ## SavedVariablesPerCharacter: RXPCData, RXPCTrackingData, RXPCComms, RXPCSettings
 ## X-Curse-Project-ID: 486246

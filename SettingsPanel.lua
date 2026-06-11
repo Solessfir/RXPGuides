@@ -198,6 +198,7 @@ local settingsDBDefaults = {
         -- Themes
         activeTheme = 'RXP Blue',
         customTheme = addon.customThemeBase,
+        themeFontOverride = "",
         enableThemeLiveReload = true,
 
         -- Text colors
@@ -3103,6 +3104,34 @@ function addon.settings:CreateAceOptionsPanel()
                         hidden = function()
                             return self.profile.activeTheme ~= 'Custom'
                         end,
+                    },
+                    themeFontOverride = {
+                        name = L("Font"),
+                        desc = L("Overrides the theme font for any theme. Theme Default uses the font defined by the active theme."),
+                        type = "select",
+                        width = optionsWidth,
+                        order = 1.75,
+                        values = function()
+                            local fonts = {[""] = L("Theme Default")}
+                            local LSM = _G.LibStub and
+                                _G.LibStub("LibSharedMedia-3.0", true)
+                            if LSM then
+                                for name, path in pairs(LSM:HashTable("font")) do
+                                    fonts[path] = name
+                                end
+                            end
+                            return fonts
+                        end,
+                        get = function()
+                            return self.profile.themeFontOverride
+                        end,
+                        confirm = true,
+                        confirmText = L(
+                            "Changing the font requires a UI reload to fully apply. Reload now?"),
+                        set = function(_, value)
+                            self.profile.themeFontOverride = value
+                            _G.ReloadUI()
+                        end
                     },
                     customThemeTextColor = {
                         name = L("Text Color"), -- TODO locale

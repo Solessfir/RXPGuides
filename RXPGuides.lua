@@ -1558,6 +1558,14 @@ function addon:PLAYER_ENTERING_WORLD(_, isInitialLogin)
     end)
 
     if isInitialLogin then
+        if addon.settings.profile.themeFontOverride ~= "" then
+            C_Timer.After(0, function()
+                addon.RenderFrame('fontOverride')
+                addon.SetupArrow()
+                addon.UpdateGuideFontSize()
+            end)
+        end
+
         C_Timer.After(4, function()
             addon.settings:DetectXPRate()
         end)

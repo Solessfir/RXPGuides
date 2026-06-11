@@ -82,6 +82,21 @@ themes['DarkMode'] = {
     author = "Bypass"
 }
 
+themes['Glass'] = {
+    background = {14 / 255, 14 / 255, 14 / 255, 0},
+    bottomFrameBG = {19 / 255, 19 / 255, 19 / 255, 0},
+    bottomFrameHighlight = {classColor.r, classColor.g, classColor.b, 128 / 255},
+    displayName = "Glass",
+    mapPins = {classColor.r, classColor.g, classColor.b, 1},
+    tooltip = "|c" .. classColor.colorStr,
+    texturePath = "Interface/AddOns/" .. addonName .. "/Textures/Glass/",
+    headerTexture = "rxp-banner",
+    font = _G.GameFontNormal:GetFont(),
+    textColor = {1, 1, 1},
+    applicable = function() return not RXPCData.GA end,
+    author = "Solessfir"
+}
+
 themes['RXP Green'] = {
     background = {6 / 255, 23 / 255, 12 / 255, 1},
     bottomFrameBG = {9 / 255, 34 / 255, 17 / 255, 1},
@@ -223,6 +238,21 @@ function addon:LoadActiveTheme()
     addon.colors = addon.activeTheme
 
     addon.font = addon.activeTheme.font
+
+    -- Global font override, applies to any theme
+    if addon.settings and addon.settings.profile.themeFontOverride and
+        addon.settings.profile.themeFontOverride ~= "" then
+        addon.font = addon.settings.profile.themeFontOverride
+    end
+
+    -- Validate the font actually loads. A custom font path can fail at boot if
+    -- its addon hasn't registered the file yet; an unset font crashes SetText.
+    if not addon.fontTester then
+        addon.fontTester = UIParent:CreateFontString()
+    end
+    if not (addon.font and addon.fontTester:SetFont(addon.font, 11, "")) then
+        addon.font = _G.GameFontNormal:GetFont()
+    end
 
     return addon.activeTheme
 end
