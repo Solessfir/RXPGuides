@@ -4,7 +4,6 @@ local RXPGuides = addon.RXPGuides
 local _, class = UnitClass("player")
 local _G = _G
 local fmt,tinsert = string.format, table.insert
-local LibDD = LibStub:GetLibrary("LibUIDropDownMenu-4.0", true)
 local AceGUI = LibStub("AceGUI-3.0")
 local LibDeflate = LibStub("LibDeflate")
 
@@ -1845,7 +1844,7 @@ function addon:LoadGuide(guide, OnLoad)
         addon.noGuide = nil
     end
 
-    _G.CloseDropDownMenus()
+    addon:CloseMenu()
 
     if not (OnLoad and RXPCData and RXPCData.currentStep) then
         RXPCData.currentStep = 1
@@ -1906,6 +1905,7 @@ function addon:LoadGuide(guide, OnLoad)
 
             guideWindow.title:SetText(title)
             guideWindow.subtitle:SetText(not guide.title and guide.subgroup and guideName or "")
+            guideWindow:UpdateResizeBounds(guideWindow.guideSteps.frame:IsShown(), false)
         end
     end
 
@@ -2408,8 +2408,7 @@ function RXPFrame:GenerateMenuTable(menu)
         else
             addon:LoadGuide(guide)
         end
-        if _G.CloseDropDownMenus then _G.CloseDropDownMenus() end
-        if LibDD then LibDD:CloseDropDownMenus() end
+        addon:CloseMenu()
     end
     for group in pairs(addon.guideList) do
         local firstChar = group:sub(1, 1)
@@ -2891,7 +2890,7 @@ function addon.v2:ShowActivePartyStepsMenu()
             text = _G.CLOSE,
             notCheckable = 1,
             func = function()
-                _G.CloseDropDownMenus()
+                addon:CloseMenu()
             end,
         },
     }
@@ -3026,8 +3025,8 @@ function addon.v2:SetActiveStepsFrameAnchor(stepFrame)
     if addon.settings.profile.anchorOrientation == "bottom" then
         guideWindow = guideWindow or addon.RXPFrame
 
-        stepFrame:SetPoint("TOPLEFT", guideWindow, "BOTTOMLEFT", leftInset + 3, 0)
-        stepFrame:SetPoint("TOPRIGHT", guideWindow, "BOTTOMRIGHT", -rightInset - 3, 0)
+        stepFrame:SetPoint("TOPLEFT", guideWindow, "BOTTOMLEFT", leftInset + 3, -5)
+        stepFrame:SetPoint("TOPRIGHT", guideWindow, "BOTTOMRIGHT", -rightInset - 3, -5)
     else
         if guideWindow then
             stepFrame:SetPoint("BOTTOMLEFT", guideWindow, "TOPLEFT", leftInset, 3)

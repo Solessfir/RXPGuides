@@ -2,7 +2,7 @@ local addonName, addon = ...
 
 local locale = _G.GetLocale()
 local pairs, assert, type = pairs, assert, type
-local min, max, floor, abs = math.min, math.max, math.floor, math.abs
+local min, max, floor, ceil, abs = math.min, math.max, math.floor, math.ceil, math.abs
 local strbyte, strsub = string.byte, string.sub
 local CreateFrame, UIParent = CreateFrame, UIParent
 
@@ -740,7 +740,15 @@ function addon.ui.v2:RegisterRXPV2GuideWindow()
     local methods = {
         ["GetCollapsedHeight"] = function(this) return this.upperFrame:GetHeight() end,
 
-        ["GetShellHeight"] = function(this) return this:GetCollapsedHeight() + this.footer:GetHeight() - 2 end,
+        ["GetShellHeight"] = function(this) return this:GetCollapsedHeight() + this.footer:GetHeight() end,
+
+        ["GetMinimumWidth"] = function(this)
+            local textWidth = max(this.title:GetStringWidth() or 0, this.subtitle:GetStringWidth() or 0)
+
+            if textWidth <= 0 then return guideWindowDefaultWidth end
+
+            return max(guideWindowDefaultWidth, ceil(textWidth + 121))
+        end,
 
         ["UpdateHeaderHeight"] = function(this)
             local headerHeight = this.snapshotEmpty and 34 or 36
@@ -786,7 +794,7 @@ function addon.ui.v2:RegisterRXPV2GuideWindow()
 
             this.guideSteps.frame:ClearAllPoints()
             this.guideSteps.frame:SetPoint("TOPLEFT", this.guideStepsFrame, "TOPLEFT", 2, -2)
-            this.guideSteps.frame:SetPoint("BOTTOMRIGHT", this.guideStepsFrame, "BOTTOMRIGHT", -2, 22)
+            this.guideSteps.frame:SetPoint("BOTTOMRIGHT", this.guideStepsFrame, "BOTTOMRIGHT", -2, 16)
             this.guideSteps.scroll:SetContentTopPadding(4)
 
             this.footer:ClearAllPoints()
@@ -827,7 +835,11 @@ function addon.ui.v2:RegisterRXPV2GuideWindow()
                                         this.guideSteps.scroll:GetContentTopPadding())
             end
 
-            addon.SetResizeBounds(this.frame, guideWindowDefaultWidth, minimumHeight)
+            local minimumWidth = this:GetMinimumWidth()
+
+            addon.SetResizeBounds(this.frame, minimumWidth, minimumHeight)
+
+            if this.frame:GetWidth() < minimumWidth then this.frame:SetWidth(minimumWidth) end
         end,
 
         ["OnAcquire"] = function(this) this.frame:Show() end,
@@ -843,15 +855,8 @@ function addon.ui.v2:RegisterRXPV2GuideWindow()
             this.guideHeight = this.guideHeight or addon.settings.profile.v2GuideWindowExpandedHeight or
                                    guideWindowDefaultHeight
 
-            if wasEmptyGuide and not snapshot.empty then
+            if wasEmptyGuide and not snapshot.empty and stepListShown then
                 addon.settings.profile.frameHeight = max(addon.settings.profile.frameHeight or 0, addon.height or 35)
-                stepListShown = true
-            end
-
-            if stepListShown and not snapshot.empty then
-                this.guideStepsFrame:Show()
-                this.guideSteps.frame:Show()
-                this.frame:SetHeight(this.guideHeight)
             end
 
             this.guideSteps:SetRows(snapshot.rows, nil, scrollToActive)
@@ -1106,6 +1111,8 @@ function addon.ui.v2:RegisterRXPV2GuideWindow()
         for method, func in pairs(methods) do widget[method] = func end
 
         widget:UpdateTheme({})
+        frame:SetHeight(widget:GetShellHeight())
+        guideSteps.frame:Hide()
 
         guideNameFrame:SetScript("OnMouseDown", function(_, button)
             if button == "LeftButton" and not addon.settings.profile.lockFrames then frame:StartMoving() end
@@ -1172,7 +1179,7 @@ function addon.v2:GetGuideWindow()
         addon.settings:LoadFramePosition("RXPV2GuideWindow", frame)
         frame:SetWidth(max(frame:GetWidth(), guideWindowDefaultWidth))
     else
-        frame:SetSize(guideWindowDefaultWidth, guideWindowDefaultHeight)
+        frame:SetSize(guideWindowDefaultWidth, window:GetShellHeight())
         frame:ClearAllPoints()
         frame:SetPoint("LEFT", UIParent, "LEFT", 0, 35)
     end
@@ -1184,6 +1191,7 @@ function addon.v2:GetGuideWindow()
     end
 
     window.guideHeight = profile.v2GuideWindowExpandedHeight or guideWindowDefaultHeight
+    frame:SetHeight(window:GetShellHeight())
 
     return window
 end

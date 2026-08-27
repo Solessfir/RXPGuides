@@ -1482,6 +1482,8 @@ function addon:OnEnable()
     end
 
     addon.settings:LoadFramePositions()
+    addon.RXPFrame.SetStepFrameAnchor()
+    addon.v2:UpdateGuideWindow()
 
     if addon.settings.profile.hideInRaid then
         self:RegisterEvent("GROUP_JOINED", addon.HideInRaid)
@@ -2463,6 +2465,14 @@ end
 
 RXP = addon -- debug purposes
 
+local LibDD = LibStub:GetLibrary("LibUIDropDownMenu-4.0", true)
+
+function addon:CloseMenu()
+    if _G.CloseDropDownMenus then return _G.CloseDropDownMenus() end
+
+    if LibDD then LibDD:CloseDropDownMenus() end
+end
+
 function addon:ShowMenu(menu, menuFrame, anchor, x, y, displayMode, autoHideDelay)
     menuFrame = menuFrame or addon.RXPFrame.MenuFrame
     anchor = anchor or "cursor"
@@ -2491,8 +2501,7 @@ function addon:ShowMenu(menu, menuFrame, anchor, x, y, displayMode, autoHideDela
     else
         if hadV2MenuTheme then addon.v2:UpdateMenuTheme(_G.L_DropDownList1, false) end
 
-        LibStub:GetLibrary("LibUIDropDownMenu-4.0"):EasyMenu(menu, menuFrame, anchor, x, y, displayMode,
-                                                               autoHideDelay)
+        LibDD:EasyMenu(menu, menuFrame, anchor, x, y, displayMode, autoHideDelay)
 
         if menuFrame.rxpV2MenuTheme then
             addon.v2:UpdateMenuTheme(_G.L_DropDownList1, menuFrame.rxpV2MenuTheme)
