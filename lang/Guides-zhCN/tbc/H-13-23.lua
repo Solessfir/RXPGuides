@@ -2136,7 +2136,7 @@ step
     .target 乔恩·星眼
 step
 	#completewith LakotaMani
-    >>击杀 |cRXP_ENEMY_Stormstouts|r. 拾取地上的 them for a |cRXP_LOOT_Horn|r
+    >>击杀 |cRXP_ENEMY_Stormsnouts|r. 拾取地上的 them for a |cRXP_LOOT_Horn|r
     .complete 821,3 --Thunder Lizard Horn (1)
     .mob 雷角蜥蜴
 step
@@ -2172,7 +2172,7 @@ step
     .unitscan 拉克塔曼尼
 step
     #completewith next
-    >>击杀 |cRXP_ENEMY_Stormstouts|r. 拾取地上的 them for a |cRXP_LOOT_Horn|r
+    >>击杀 |cRXP_ENEMY_Stormsnouts|r. 拾取地上的 them for a |cRXP_LOOT_Horn|r
     .complete 821,3 --Thunder Lizard Horn (1)
     .mob 雷角蜥蜴
 step
@@ -2242,7 +2242,7 @@ step
     .goto The Barrens,49.54,55.08,50,0
     .goto The Barrens,49.03,56.24,50,0
     .goto The Barrens,49.72,56.13,50,0
-    >>击杀 |cRXP_ENEMY_Stormstouts|r. 拾取地上的 them for a |cRXP_LOOT_Horn|r
+    >>击杀 |cRXP_ENEMY_Stormsnouts|r. 拾取地上的 them for a |cRXP_LOOT_Horn|r
     .complete 821,3 --Thunder Lizard Horn (1)
     .mob 雷角蜥蜴
 step
