@@ -2970,7 +2970,7 @@ By default, the element will complete itself if the quest ID provided is turned 
 
 objFlags:
 Each power of 2 corresponds to an objective, as an example:
-Set objN to 1 if you want ot track obj1, 0 otherwise for each quest objective
+Set objN to 1 if you want to track obj1, 0 otherwise for each quest objective
 obJflag = obj1*2^0 + obj2*2^1 + obj3*2^2 + ... + objN*2^(N-1)
 
 if objFlags is omitted or set to 0, element will complete if you have the quest in your quest log
