@@ -9,9 +9,10 @@ local locale = GetLocale()
 
 if not (locale == "enUS" or locale == "enGB" or locale == "frFR") then return end
 
-local fmt, tinsert, ipairs, pairs, next, type, wipe, tonumber, strlower, smatch = string.format, table.insert, ipairs,
-                                                                                  pairs, next, type, wipe, tonumber,
-                                                                                  strlower, string.match
+local fmt, tinsert, sort, ipairs, pairs, next, type, wipe, tonumber, strlower, smatch = string.format, table.insert,
+                                                                                        table.sort, ipairs, pairs,
+                                                                                        next, type, wipe, tonumber,
+                                                                                        strlower, string.match
 
 local GetItemInfo = C_Item and C_Item.GetItemInfo or _G.GetItemInfo
 local GetItemInfoInstant = C_Item and C_Item.GetItemInfoInstant or _G.GetItemInfoInstant
@@ -19,6 +20,7 @@ local IsEquippedItem = C_Item and C_Item.IsEquippedItem or _G.IsEquippedItem
 local GetItemStats = C_Item and C_Item.GetItemStats or _G.GetItemStats
 local UnitLevel = _G.UnitLevel
 local GetInventoryItemLink = _G.GetInventoryItemLink
+local ProfileTime = _G.debugprofilestop or function() return _G.GetTime() * 1000 end
 
 local ItemArmorSubclass, ItemWeaponSubclass = Enum.ItemArmorSubclass, Enum.ItemWeaponSubclass
 
@@ -379,8 +381,17 @@ local SPELL_KIND_MAP = {
 
 local SPELL_KIND_MATCH = "Increases damage done by (%a+) spells and effects by up to (%d+)."
 
+local ON_HIT_PREFIX = strlower(_G.ITEM_SPELL_TRIGGER_ONPROC or "Chance on hit:")
+local ON_HIT_DAMAGE_OVER_TIME_MATCH = "(%d+).-damage every (%d+).-for (%d+)"
+local ON_HIT_DAMAGE_RANGE_MATCH = "(%d+)%s+to%s+(%d+).-damage"
+local ON_HIT_DAMAGE_MATCH = "(%d+).-damage"
+
 if locale == 'frFR' then
     SPELL_KIND_MATCH = "Augmente les dégâts infligés par les sorts et effets d?e?'? ?(%a+) de (%d+) au maximum."
+
+    ON_HIT_DAMAGE_OVER_TIME_MATCH = "(%d+).-dégâts.-toutes les (%d+).-pendant (%d+)"
+    ON_HIT_DAMAGE_RANGE_MATCH = "(%d+)%s+à%s+(%d+).-dégâts"
+    ON_HIT_DAMAGE_MATCH = "(%d+).-dégâts"
 
     -- Comma decimal delimiter
     OUT_OF_BAND_KEYS['ITEM_MOD_CR_SPEED_SHORT'] = _G.ITEM_MOD_CR_SPEED_SHORT .. "%s+(%d+,%d+)"
@@ -445,22 +456,17 @@ local function KeyToRegex(keyString)
     return regex
 end
 
+local function getUpgradePercentage(ratio)
+    if ratio == 1 then return 100 end
+    if ratio and ratio > 0 then return (ratio * 100) - 100 end
+
+    return (ratio or 0) * 100
+end
+
 local function prettyPrintRatio(ratio)
     if not ratio then return "NaN" end
 
-    local percentage
-
-    if ratio == 1 then
-        return '100%'
-    elseif ratio > 0 then
-        percentage = ((ratio * 100) - 100)
-    elseif ratio == 0 then
-        return '0%'
-    else -- < 0
-        percentage = (ratio * 100)
-    end
-
-    return fmt("%.2f%%", percentage)
+    return fmt("%.2f%%", getUpgradePercentage(ratio))
 end
 
 local function IsWeaponSlot(itemEquipLoc)
@@ -477,10 +483,15 @@ end
 local function enableTotalEPLines(itemData, lines)
     if itemData.dpsWeights then -- IsWeaponSlot equivalent
         for suffix, data in pairs(itemData.dpsWeights) do
-            tinsert(lines, fmt("  Total EP (%s): %.2f", SPEED_SUFFIX_NAME_MAP[suffix], data.totalWeight))
+            tinsert(lines, fmt("  Total EP (%s): %.2f", SPEED_SUFFIX_NAME_MAP[suffix],
+                               itemData.totalWeight + data.totalWeight))
         end
     else -- Armor
         tinsert(lines, fmt("  Total EP: %.2f", itemData.totalWeight))
+    end
+
+    if itemData.onHitWeight and itemData.onHitWeight > 0 then
+        tinsert(lines, fmt("  Estimated on-hit EP (1 PPM): %.2f", itemData.onHitWeight))
     end
 end
 
@@ -1013,6 +1024,38 @@ local function CalculateSpellWeight(stats, tooltipTextLines)
     return totalStatWeight
 end
 
+local function ParseOnHitDamage(line)
+    line = strlower(line)
+    if not string.find(line, ON_HIT_PREFIX, 1, true) then return end
+
+    local damage, interval, duration = smatch(line, ON_HIT_DAMAGE_OVER_TIME_MATCH)
+    if damage then return tonumber(damage) * tonumber(duration) / tonumber(interval) end
+
+    local minimum, maximum = smatch(line, ON_HIT_DAMAGE_RANGE_MATCH)
+    if minimum then return (tonumber(minimum) + tonumber(maximum)) / 2 end
+
+    damage = smatch(line, ON_HIT_DAMAGE_MATCH)
+    return tonumber(damage)
+end
+
+local function CalculateOnHitWeight(itemData, tooltipTextLines)
+    if not IsWeaponSlot(itemData.itemEquipLoc) then return 0 end
+
+    local procDamage = 0
+    for _, line in ipairs(tooltipTextLines) do procDamage = procDamage + (ParseOnHitDamage(line) or 0) end
+    if procDamage == 0 then return 0 end
+
+    local isRanged = itemData.itemEquipLoc == 'INVTYPE_RANGED' or itemData.itemEquipLoc == 'INVTYPE_THROWN' or
+                         itemData.itemEquipLoc == 'INVTYPE_RANGEDRIGHT'
+    local dpsWeightKey = isRanged and 'ITEM_MOD_DAMAGE_PER_SECOND_SHORT_RANGED' or
+                             'ITEM_MOD_DAMAGE_PER_SECOND_SHORT'
+    local dpsWeight = session.activeStatWeights[dpsWeightKey]
+    if not dpsWeight or dpsWeight <= 0 then dpsWeight = 1 end
+
+    -- ponytail: The client does not expose item proc rates. Estimate direct-damage effects at 1 PPM and use item overrides when exact rates matter.
+    return procDamage / 60 * dpsWeight
+end
+
 function addon.itemUpgrades:GetItemData(itemLink, tooltip)
     if not itemLink or type(itemLink) ~= "string" then
         -- print("addon.itemUpgrades:GetItemData, itemLink string required", itemLink)
@@ -1197,6 +1240,9 @@ function addon.itemUpgrades:GetItemData(itemLink, tooltip)
         end
     end
 
+    itemData.onHitWeight = CalculateOnHitWeight(itemData, tooltipTextLines)
+    totalWeight = totalWeight + itemData.onHitWeight
+
     itemData.totalWeight = addon.Round(totalWeight, 6)
     itemData.stats = stats
 
@@ -1222,27 +1268,37 @@ end
 
 -- return ratio, weight, debugMsg
 function addon.itemUpgrades:GetEquippedComparisonRatio(equippedItemLink, comparedData, slotComparisonId)
-    if not comparedData or not equippedItemLink then return nil, -1, "invalid parameters" end
-
-    -- Load equipped item into hidden tooltip for parsing
-    local equippedData = self:GetItemData(equippedItemLink, nil)
-
-    if not equippedData then return nil, -1, "not equippedData" end
+    if not comparedData then return nil, -1, "invalid parameters" end
 
     local equippedWeight, comparedWeight
 
-    -- _G.INVSLOT_RANGED, _G.INVSLOT_OFFHAND, _G.INVSLOT_MAINHAND
-    -- MH / OH have more complex handling, requires DPS calculations here
-    if IsWeaponSlot(equippedData.itemEquipLoc) then
-        equippedWeight = self:CalculateWeaponWeight(equippedData, slotComparisonId)
+    if IsWeaponSlot(comparedData.itemEquipLoc) then
         comparedWeight = self:CalculateWeaponWeight(comparedData, slotComparisonId)
     else
-        equippedWeight = equippedData.totalWeight
         comparedWeight = comparedData.totalWeight
     end
 
-    -- If -1, then failed to calculate speed/DPS EP
-    if equippedWeight < 0 or comparedWeight < 0 then
+    if comparedWeight < 0 then return nil, -1, _G.UNKNOWN end
+
+    if not equippedItemLink or equippedItemLink == "" then
+        if comparedWeight == 0 then return nil, 0, _G.EMPTY end
+
+        return 1.0, comparedWeight, _G.EMPTY
+    end
+
+    -- Load equipped item into hidden tooltip for parsing.
+    local equippedData = self:GetItemData(equippedItemLink, nil)
+    if not equippedData then return nil, -1, "not equippedData" end
+
+    -- _G.INVSLOT_RANGED, _G.INVSLOT_OFFHAND, _G.INVSLOT_MAINHAND
+    -- MH and OH require slot-specific DPS calculations.
+    if IsWeaponSlot(equippedData.itemEquipLoc) then
+        equippedWeight = self:CalculateWeaponWeight(equippedData, slotComparisonId)
+    else
+        equippedWeight = equippedData.totalWeight
+    end
+
+    if equippedWeight < 0 then
         return nil, -1, _G.UNKNOWN
     elseif equippedWeight == 0 then
         return 1.0, comparedWeight, _G.EMPTY
@@ -1306,6 +1362,7 @@ function addon.itemUpgrades:CompareItemWeight(itemLink, tooltip)
     -- Check applicable slots
     -- Will be 1 for most and 1-2 for rings
     for itemEquipLoc, slotId in pairs(slotNamesToCompare) do
+        ratio, weightIncrease, debug = nil, nil, nil
         dpsWeights = nil
 
         -- print("Stack2.2, CompareItemWeight pairs(slotNamesToCompare)", slotId or itemEquipLoc)
@@ -1313,7 +1370,9 @@ function addon.itemUpgrades:CompareItemWeight(itemLink, tooltip)
 
         if comparedData.itemEquipLoc == "INVTYPE_SHIELD" or comparedData.itemEquipLoc == "INVTYPE_HOLDABLE" then
             -- Prevent shields from showing up as "Empty: " upgrades when using 2H
-            ratio, weightIncrease, debug = self:GetEquippedComparisonRatio(equippedItemLink, comparedData, slotId)
+            if equippedItemLink and equippedItemLink ~= "" then
+                ratio, weightIncrease, debug = self:GetEquippedComparisonRatio(equippedItemLink, comparedData, slotId)
+            end
         elseif comparedData.itemLink == equippedItemLink then
             -- Same item, so not an upgrade
             ratio = nil
@@ -1331,11 +1390,9 @@ function addon.itemUpgrades:CompareItemWeight(itemLink, tooltip)
 
                 debug = _G.EMPTY
                 equippedItemLink = _G.EMPTY
-                ratio = nil
-                weightIncrease = nil
             end
         elseif not equippedItemLink or equippedItemLink == "" then
-            ratio = nil
+            ratio = comparedData.totalWeight > 0 and 1.0 or nil
             debug = _G.EMPTY
             equippedItemLink = _G.EMPTY
             weightIncrease = comparedData.totalWeight
@@ -1394,7 +1451,7 @@ local GetNumAuctionItems, GetAuctionItemLink, GetAuctionItemInfo = _G.GetNumAuct
 local time = _G.time
 
 local AuctionFilterButtons = {["Weapons"] = 1, ["Armor"] = 2}
-local AHCacheVersion = 1
+local AHCacheVersion = 3
 local AHCacheTTL = 1200
 
 local ahSession = {
@@ -1414,6 +1471,12 @@ local ahSession = {
     scanCancelled = false,
     scanGeneration = 0,
 
+    analysisGeneration = 0,
+    analysisRunning = false,
+    analysisRequested = false,
+
+    sortKey = "name",
+    sortAscending = true,
     selectedRow = nil
 }
 
@@ -1425,8 +1488,15 @@ local function clearAHSelection()
     if ahSession.displayFrame and ahSession.displayFrame.buyButton then ahSession.displayFrame.buyButton:Disable() end
 end
 
+local function invalidateAHAnalysis()
+    ahSession.analysisGeneration = ahSession.analysisGeneration + 1
+    ahSession.analysisRunning = false
+    ahSession.analysisRequested = false
+end
+
 local function invalidateAHCallbacks()
     ahSession.scanGeneration = ahSession.scanGeneration + 1
+    invalidateAHAnalysis()
     ahSession.refreshQueued = nil
 end
 
@@ -1434,7 +1504,9 @@ local function getAHCache()
     local cache = RXPCData and RXPCData.itemUpgradeAHCache
     if not cache or cache.version ~= AHCacheVersion or not cache.createdAt or time() - cache.createdAt > AHCacheTTL or
         cache.class ~= addon.player.class or cache.level ~= addon.player.level or cache.spec ~=
-        (addon.settings.profile.itemUpgradeSpec or false) then
+        (addon.settings.profile.itemUpgradeSpec or false) or cache.maxCost ~=
+        (addon.settings.profile.itemUpgradeAHMaxCost or 0) or cache.minUpgrade ~=
+        (addon.settings.profile.itemUpgradeAHMinUpgrade or 0) then
 
         if RXPCData then RXPCData.itemUpgradeAHCache = nil end
 
@@ -1799,41 +1871,34 @@ local function calculate(itemLink, scanData)
 
     ahSession.pendingItemInfo[scanData.itemID] = nil
     scanData.totalWeight = itemData.totalWeight
-    scanData.weightPerCopper = itemData.totalWeight / scanData.lowestPrice
     scanData.itemEquipLoc = itemData.itemEquipLoc
-    scanData.ratio = 10.0 -- Empty slot value
+    scanData.ratio = 0
     scanData.comparisons = addon.itemUpgrades:CompareItemWeight(itemLink) or {}
 
-    local rwpc
-    local highestRWPC, highestRatio, hightestWeightIncrease = -1, 0, 0
+    local highestRWPC, highestRatio, highestWeightIncrease, budgetRatio, budgetWeightIncrease
     -- TODO account for multi-slot comparisons, show both
     for _, compareData in ipairs(scanData.comparisons) do
-        -- To avoid complicated comparison, use ratio as a multiplier
         if compareData.Ratio then
-            rwpc = (scanData.totalWeight * compareData.Ratio) / scanData.lowestPrice
-        else -- Treat an empty slot as 1:1 upgrade weight
-            rwpc = scanData.totalWeight / scanData.lowestPrice
-            compareData.Ratio = scanData.totalWeight
-        end
+            local rwpc = compareData.WeightIncrease / scanData.lowestPrice
 
-        if rwpc > highestRWPC then highestRWPC = rwpc end
-
-        if compareData.Ratio > highestRatio then
-            highestRatio = compareData.Ratio
-
-            -- Include flat EP for AH Scanning UI
-            if compareData.WeightIncrease then -- Item upgrade
-                hightestWeightIncrease = compareData.WeightIncrease
-            else -- Empty slot upgrade
-                hightestWeightIncrease = scanData.totalWeight
+            if not highestRWPC or rwpc > highestRWPC then
+                highestRWPC = rwpc
+                budgetRatio = compareData.Ratio
+                budgetWeightIncrease = compareData.WeightIncrease
             end
-            -- print(itemLink, scanData.totalWeight, hightestWeightIncrease)
+
+            if not highestRatio or compareData.Ratio > highestRatio then
+                highestRatio = compareData.Ratio
+                highestWeightIncrease = compareData.WeightIncrease
+            end
         end
     end
 
-    scanData.ratio = highestRatio
+    scanData.ratio = highestRatio or 0
     scanData.relativeWeightPerCopper = highestRWPC
-    scanData.weightIncrease = hightestWeightIncrease
+    scanData.weightIncrease = highestWeightIncrease or 0
+    scanData.budgetRatio = budgetRatio or 0
+    scanData.budgetWeightIncrease = budgetWeightIncrease or 0
 end
 
 local function analyzeSlotUpgrade(scanData, itemLink, bAS)
@@ -1857,14 +1922,14 @@ local function analyzeSlotUpgrade(scanData, itemLink, bAS)
     if not scanData.relativeWeightPerCopper then return true end
 
     if scanData.relativeWeightPerCopper > bAS.budget.rwpc then
-        bAS.budget.ratio = scanData.ratio
+        bAS.budget.ratio = scanData.budgetRatio
         bAS.budget.rwpc = scanData.relativeWeightPerCopper
         bAS.budget.itemLink = itemLink
         bAS.budget.itemID = scanData.itemID
         bAS.budget.itemIcon = scanData.itemIcon
         bAS.budget.name = scanData.name
         bAS.budget.level = scanData.level
-        bAS.budget.weightIncrease = scanData.weightIncrease
+        bAS.budget.weightIncrease = scanData.budgetWeightIncrease
         bAS.budget.totalWeight = scanData.totalWeight
 
         bAS.budget.lowestPrice = ahSession.scanData[itemLink].lowestPrice
@@ -1885,30 +1950,7 @@ local function getAHSlotName(invEquipType)
     return _G[invEquipType]
 end
 
-function addon.itemUpgrades.AH:Analyze()
-    ahSession.bestAnalysis = {}
-
-    -- We already know all of this is usable, so just care about slots
-    for invEquipType, _ in pairs(session.equippableSlots) do
-        ahSession.bestAnalysis[invEquipType] = {
-            slotName = getAHSlotName(invEquipType),
-            best = {ratio = 0, lowestPrice = 0, itemLink = nil}, -- Biggest upgrade ratio
-            budget = {rwpc = 0, lowestPrice = 0, itemLink = nil} -- Biggest upgrade ratio / copper
-        }
-    end
-
-    local bAS
-
-    for itemLink, scanData in pairs(ahSession.scanData) do
-        calculate(itemLink, scanData)
-
-        bAS = ahSession.bestAnalysis[scanData.itemEquipLoc]
-        -- print("Analyze", itemLink, "weightPerCopper",
-        --      scanData.weightPerCopper, "relativeWPC",
-        --      scanData.relativeWeightPerCopper, "ratio", scanData.ratio)
-        analyzeSlotUpgrade(scanData, itemLink, bAS)
-    end
-
+local function saveAHAnalysisCache()
     if not RXPCData then return end
 
     local cache = {
@@ -1917,6 +1959,8 @@ function addon.itemUpgrades.AH:Analyze()
         class = addon.player.class,
         level = UnitLevel("player"),
         spec = addon.settings.profile.itemUpgradeSpec or false,
+        maxCost = addon.settings.profile.itemUpgradeAHMaxCost or 0,
+        minUpgrade = addon.settings.profile.itemUpgradeAHMinUpgrade or 0,
         gear = {},
         results = {}
     }
@@ -1968,6 +2012,81 @@ function addon.itemUpgrades.AH:Analyze()
     end
 
     RXPCData.itemUpgradeAHCache = cache
+end
+
+function addon.itemUpgrades.AH:Analyze()
+    if ahSession.analysisRunning then
+        ahSession.analysisRequested = true
+        return
+    end
+
+    ahSession.analysisRunning = true
+    ahSession.analysisRequested = false
+    ahSession.analysisGeneration = ahSession.analysisGeneration + 1
+
+    local analysisGeneration = ahSession.analysisGeneration
+    local scanGeneration = ahSession.scanGeneration
+    local maxCost = addon.settings.profile.itemUpgradeAHMaxCost or 0
+    local minUpgrade = addon.settings.profile.itemUpgradeAHMinUpgrade or 0
+    local analysisItems = {}
+    local itemIndex = 1
+
+    ahSession.bestAnalysis = {}
+
+    -- We already know all of this is usable, so just care about slots.
+    for invEquipType, _ in pairs(session.equippableSlots) do
+        ahSession.bestAnalysis[invEquipType] = {
+            slotName = getAHSlotName(invEquipType),
+            best = {ratio = 0, lowestPrice = 0, itemLink = nil}, -- Biggest upgrade ratio
+            budget = {rwpc = 0, lowestPrice = 0, itemLink = nil} -- Biggest upgrade ratio / copper
+        }
+    end
+
+    for itemLink, scanData in pairs(ahSession.scanData) do
+        tinsert(analysisItems, {itemLink = itemLink, scanData = scanData})
+    end
+
+    local function processAnalysisBatch()
+        if analysisGeneration ~= ahSession.analysisGeneration or scanGeneration ~= ahSession.scanGeneration then
+            return
+        end
+
+        local batchStarted = ProfileTime()
+
+        while itemIndex <= #analysisItems do
+            local item = analysisItems[itemIndex]
+            if maxCost == 0 or item.scanData.lowestPrice <= maxCost then
+                calculate(item.itemLink, item.scanData)
+
+                if item.scanData.ratio and getUpgradePercentage(item.scanData.ratio) >= minUpgrade then
+                    local slotAnalysis = ahSession.bestAnalysis[item.scanData.itemEquipLoc]
+                    analyzeSlotUpgrade(item.scanData, item.itemLink, slotAnalysis)
+                end
+            end
+            itemIndex = itemIndex + 1
+
+            -- Tooltip parsing is expensive. Yield regularly so a large auction scan cannot exhaust WoW's per-frame script execution limit.
+            if ProfileTime() - batchStarted >= 5 then
+                C_Timer.After(0, processAnalysisBatch)
+                return
+            end
+        end
+
+        ahSession.analysisRunning = false
+        saveAHAnalysisCache()
+
+        if ahSession.analysisRequested then
+            ahSession.analysisRequested = false
+            addon.itemUpgrades.AH:Analyze()
+            return
+        end
+
+        if ahSession.displayFrame and ahSession.displayFrame:IsShown() then
+            addon.itemUpgrades.AH:DisplayEmbeddedResults()
+        end
+    end
+
+    processAnalysisBatch()
 end
 
 local function isAHV2Enabled() return addon.v2 and addon.v2:IsGuideWindowEnabled() end
@@ -2079,7 +2198,52 @@ local auctionHouseRowHandlers = {
     OnClick = onAuctionHouseRowClick
 }
 
-local auctionHouseHandlers = {OnBuyout = function() addon.itemUpgrades.AH:SearchForSelectedItem() end}
+local function onAuctionHouseSort(key)
+    if ahSession.sortKey == key then
+        ahSession.sortAscending = not ahSession.sortAscending
+    else
+        ahSession.sortKey = key
+        ahSession.sortAscending = true
+    end
+
+    addon.itemUpgrades.AH:DisplayEmbeddedResults()
+end
+
+local function refreshAuctionHouseFilters()
+    invalidateAHAnalysis()
+    ahSession.bestAnalysis = nil
+    if RXPCData then RXPCData.itemUpgradeAHCache = nil end
+
+    if next(ahSession.scanData) then
+        addon.itemUpgrades.AH:Analyze()
+    elseif ahSession.displayFrame then
+        clearAHSelection()
+        ahSession.displayFrame.Results:ReleaseChildren()
+    end
+end
+
+local function onAuctionHouseMaxCostChanged(maxCost)
+    maxCost = maxCost or 0
+    if (addon.settings.profile.itemUpgradeAHMaxCost or 0) == maxCost then return end
+
+    addon.settings.profile.itemUpgradeAHMaxCost = maxCost
+    refreshAuctionHouseFilters()
+end
+
+local function onAuctionHouseMinUpgradeChanged(minUpgrade)
+    minUpgrade = minUpgrade or 0
+    if (addon.settings.profile.itemUpgradeAHMinUpgrade or 0) == minUpgrade then return end
+
+    addon.settings.profile.itemUpgradeAHMinUpgrade = minUpgrade
+    refreshAuctionHouseFilters()
+end
+
+local auctionHouseHandlers = {
+    OnBuyout = function() addon.itemUpgrades.AH:SearchForSelectedItem() end,
+    OnMaxCostChanged = onAuctionHouseMaxCostChanged,
+    OnMinUpgradeChanged = onAuctionHouseMinUpgradeChanged,
+    OnSort = onAuctionHouseSort
+}
 
 local function initializeAuctionHouseRow(row, data)
     if not data then
@@ -2122,6 +2286,7 @@ local function getAuctionHouseRowData(data, itemKindIcon, updateEPText, theme)
         Name = data.name,
         ColorizedName = getColorizedName(data.itemLink, data.name),
         ItemLevel = data.level,
+        Upgrade = getUpgradePercentage(data.ratio),
         UpdateEPText = updateEPText(data, theme),
         TotalWeight = data.totalWeight,
         BuyoutMoney = data.lowestPrice,
@@ -2141,6 +2306,60 @@ local function getAuctionHouseBlockData(data, theme, upgradeIcon, valueIcon)
     end
 
     return blockData
+end
+
+local function getElvUISkins()
+    if type(_G.ElvUI) ~= "table" then return end
+
+    local E = _G.unpack(_G.ElvUI)
+    if not (E and E.private and E.private.skins and E.private.skins.blizzard and E.private.skins.blizzard.enable and
+        E.private.skins.blizzard.auctionhouse) then
+        return
+    end
+
+    return E:GetModule("Skins", true)
+end
+
+local function styleAuctionHouseBlock(itemBlock)
+    local S = ahSession.elvUISkins
+    if not S then return end
+
+    local frame = itemBlock.frame
+    if frame.IsElvUISkinned then return end
+
+    frame.Header:StripTextures()
+    frame.Header:SetTemplate("Transparent")
+
+    for _, row in pairs({frame.Best, frame.Budget}) do
+        row:StripTextures()
+        row:SetTemplate("Transparent")
+        row:StyleButton()
+        S:HandleItemButton(row.ItemIcon, true)
+    end
+
+    frame.IsElvUISkinned = true
+end
+
+local function styleAuctionHouseFrame(frame, tabButton)
+    local S = getElvUISkins()
+    if not S then return end
+
+    ahSession.elvUISkins = S
+    for _, button in pairs(frame.sortButtons) do S:HandleButton(button, true) end
+    for _, button in pairs({frame.searchButton, frame.buyButton, frame.closeButton}) do S:HandleButton(button, true) end
+    for _, editBox in pairs({frame.maxCost.gold, frame.maxCost.silver, frame.maxCost.copper}) do
+        S:HandleEditBox(editBox)
+    end
+    S:HandleEditBox(frame.minUpgrade)
+    S:HandleScrollBar(frame.Results.scrollbar)
+    S:HandleTab(tabButton)
+
+    tabButton:ClearAllPoints()
+    tabButton:SetPoint("TOPLEFT", "AuctionFrameTab" .. (tabButton:GetID() - 1), "TOPRIGHT", -15, 0)
+end
+
+local function setAuctionFrameMoneyShown(shown)
+    if _G.AuctionFrameMoneyFrame then _G.AuctionFrameMoneyFrame:SetShown(shown) end
 end
 
 function addon.itemUpgrades.AH:CreateEmbeddedGui()
@@ -2164,6 +2383,8 @@ function addon.itemUpgrades.AH:CreateEmbeddedGui()
     ahSession.displayFrame.Title:SetText(ahSession.scanStatus.baseTitle)
 
     ahSession.displayFrame.scanButton = ahSession.displayFrame.searchButton
+    MoneyInputFrame_SetCopper(ahSession.displayFrame.maxCost, addon.settings.profile.itemUpgradeAHMaxCost or 0)
+    ahSession.displayFrame.minUpgrade:SetNumber(addon.settings.profile.itemUpgradeAHMinUpgrade or 0)
 
     ahSession.displayFrame.scanButton:SetScript("OnClick", function(this)
         if ahSession.isScanning then
@@ -2198,19 +2419,28 @@ function addon.itemUpgrades.AH:CreateEmbeddedGui()
 
     tabButton:SetPoint("TOPLEFT", "AuctionFrameTab" .. (index - 1), "TOPRIGHT", -8, 0)
 
-    tabButton:HookScript("OnHide", function() ahSession.displayFrame:Hide() end)
+    tabButton:HookScript("OnHide", function()
+        ahSession.displayFrame:Hide()
+        setAuctionFrameMoneyShown(true)
+    end)
+
+    styleAuctionHouseFrame(ahSession.displayFrame, tabButton)
+    addon.ui.v2.auctionHouse:SetSort(ahSession.sortKey, ahSession.sortAscending)
 
     tabButton.Selected = function(this)
         PanelTemplates_SetTab(attachment, this)
 
-        _G.AuctionFrameTopLeft:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Bid-TopLeft")
-        _G.AuctionFrameTop:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Auction-Top")
-        _G.AuctionFrameTopRight:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Auction-TopRight")
-        _G.AuctionFrameBotLeft:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Bid-BotLeft")
-        _G.AuctionFrameBot:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Auction-Bot")
-        _G.AuctionFrameBotRight:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Bid-BotRight")
+        if not ahSession.elvUISkins then
+            _G.AuctionFrameTopLeft:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Bid-TopLeft")
+            _G.AuctionFrameTop:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Auction-Top")
+            _G.AuctionFrameTopRight:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Auction-TopRight")
+            _G.AuctionFrameBotLeft:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Bid-BotLeft")
+            _G.AuctionFrameBot:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Auction-Bot")
+            _G.AuctionFrameBotRight:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Bid-BotRight")
+        end
 
         ahSession.displayFrame:Show()
+        setAuctionFrameMoneyShown(false)
 
         if next(ahSession.scanData) then addon.itemUpgrades.AH:Analyze() end
 
@@ -2226,6 +2456,7 @@ function addon.itemUpgrades.AH:CreateEmbeddedGui()
         PanelTemplates_DeselectTab(this)
 
         ahSession.displayFrame:Hide()
+        setAuctionFrameMoneyShown(true)
     end
 
     hooksecurefunc(_G, "AuctionFrameTab_OnClick", function(button, ...)
@@ -2238,7 +2469,7 @@ function addon.itemUpgrades.AH:CreateEmbeddedGui()
         tabButton:Selected()
     end)
 
-    PanelTemplates_TabResize(tabButton, 0, nil, 36)
+    PanelTemplates_TabResize(tabButton, 16, nil, 36)
     PanelTemplates_SetNumTabs(attachment, index)
     PanelTemplates_EnableTab(attachment, index)
 
@@ -2280,6 +2511,7 @@ function addon.itemUpgrades.AH:DisplayEmbeddedResults(showEmptyResults)
     local upgradeIcon = useV2Icons and theme.upgradeIcon or theme.legacyUpgradeIcon
     local valueIcon = useV2Icons and theme.valueIcon or theme.legacyValueIcon
     local blockData, itemBlock
+    local blocks = {}
     local hasResults = false
 
     for _, data in pairs(ahSession.bestAnalysis) do
@@ -2290,15 +2522,40 @@ function addon.itemUpgrades.AH:DisplayEmbeddedResults(showEmptyResults)
             blockData = getAuctionHouseBlockData(data, theme, upgradeIcon, valueIcon)
 
             if blockData.best or blockData.budget then
-                itemBlock = AceGUI:Create("RXPV2AuctionHouseItemBlock")
-                itemBlock:SetFullWidth(true)
-                itemBlock:SetResultCount(blockData.best and blockData.budget and 2 or 1)
-
-                initializeAuctionHouseBlock(itemBlock, blockData)
-
-                results:AddChild(itemBlock)
+                tinsert(blocks, blockData)
             end
         end
+    end
+
+    local sortKey = ahSession.sortKey
+    local ascending = ahSession.sortAscending
+    sort(blocks, function(a, b)
+        local aRow = a.best or a.budget
+        local bRow = b.best or b.budget
+        local aValue = aRow[sortKey == "name" and "Name" or sortKey == "level" and "ItemLevel" or
+                           sortKey == "upgrade" and "Upgrade" or "BuyoutMoney"] or 0
+        local bValue = bRow[sortKey == "name" and "Name" or sortKey == "level" and "ItemLevel" or
+                           sortKey == "upgrade" and "Upgrade" or "BuyoutMoney"] or 0
+
+        if sortKey == "name" then
+            aValue = strlower(aValue)
+            bValue = strlower(bValue)
+        end
+
+        if aValue == bValue then return (a.Name or "") < (b.Name or "") end
+        if ascending then return aValue < bValue end
+
+        return aValue > bValue
+    end)
+
+    addon.ui.v2.auctionHouse:SetSort(sortKey, ascending)
+    for _, data in ipairs(blocks) do
+        itemBlock = AceGUI:Create("RXPV2AuctionHouseItemBlock")
+        itemBlock:SetFullWidth(true)
+        itemBlock:SetResultCount(data.best and data.budget and 2 or 1)
+        styleAuctionHouseBlock(itemBlock)
+        initializeAuctionHouseBlock(itemBlock, data)
+        results:AddChild(itemBlock)
     end
 
     results:ResumeLayout()
