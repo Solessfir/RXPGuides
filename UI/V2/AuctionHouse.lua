@@ -11,6 +11,7 @@ local rowHighlightTexture = "Interface\\HelpFrame\\HelpFrameButton-Highlight"
 local itemIconTexture = "Interface\\Buttons\\UI-Quickslot2"
 local itemIconHighlightTexture = "Interface\\Buttons\\ButtonHilight-Square"
 local buttonDividerTexture = "Interface\\FrameGeneral\\UI-Frame"
+local sortArrowTexture = "Interface\\Buttons\\UI-SortArrow"
 
 function addon.ui.v2:InitializeAuctionHouse()
     self:RegisterRXPV2AuctionHouseItemBlock()
@@ -46,6 +47,12 @@ local function createAuctionHouseColumnButton(parent, text, width)
     label:SetJustifyH("LEFT")
     label:SetText(text)
     button.Text = label
+
+    local sortArrow = button:CreateTexture(nil, "ARTWORK")
+    sortArrow:SetSize(10, 10)
+    sortArrow:SetPoint("RIGHT", -6, 0)
+    sortArrow:Hide()
+    button.SortArrow = sortArrow
 
     return button
 end
@@ -291,7 +298,7 @@ function addon.ui.v2:RegisterRXPV2AuctionHouseItemBlock()
 end
 
 function addon.ui.v2:RegisterRXPV2AuctionHouse()
-    local Type, Version = "RXPV2AuctionHouse", 1
+    local Type, Version = "RXPV2AuctionHouse", 2
     if not AceGUI or (AceGUI:GetWidgetVersion(Type) or 0) >= Version then return end
 
     local methods = {
@@ -314,13 +321,33 @@ function addon.ui.v2:RegisterRXPV2AuctionHouse()
             this.Results = nil
             this.frame.Results = nil
             this.frame.OnBuyout = nil
+            this.frame.OnMaxCostChanged = nil
+            this.frame.OnMinUpgradeChanged = nil
+            this.frame.OnSort = nil
 
             if addon.ui.v2.auctionHouse == this then addon.ui.v2.auctionHouse = nil end
 
             this.frame:Hide()
         end,
 
-        ["SetHandlers"] = function(this, handlers) this.frame.OnBuyout = handlers.OnBuyout end
+        ["SetHandlers"] = function(this, handlers)
+            this.frame.OnBuyout = handlers.OnBuyout
+            this.frame.OnMaxCostChanged = handlers.OnMaxCostChanged
+            this.frame.OnMinUpgradeChanged = handlers.OnMinUpgradeChanged
+            this.frame.OnSort = handlers.OnSort
+        end,
+
+        ["SetSort"] = function(this, key, ascending)
+            for buttonKey, button in pairs(this.frame.sortButtons) do
+                if buttonKey == key then
+                    button.SortArrow:SetTexture(sortArrowTexture)
+                    button.SortArrow:SetTexCoord(0, 1, ascending and 0 or 1, ascending and 1 or 0)
+                    button.SortArrow:Show()
+                else
+                    button.SortArrow:Hide()
+                end
+            end
+        end
     }
 
     local function Constructor()
@@ -331,24 +358,76 @@ function addon.ui.v2:RegisterRXPV2AuctionHouse()
         title:SetText(_G.MINIMAP_TRACKING_AUCTIONEER)
         frame.Title = title
 
-        local itemName = createAuctionHouseColumnButton(frame, "Item Name", 260)
+        local itemName = createAuctionHouseColumnButton(frame, "Item Name", 254)
         itemName:SetPoint("TOPLEFT", 65, -52)
 
-        local level = createAuctionHouseColumnButton(frame, _G.REQ_LEVEL_ABBR, 86)
-        level:SetPoint("LEFT", itemName, "RIGHT", -2, 0)
+        local level = createAuctionHouseColumnButton(frame, _G.REQ_LEVEL_ABBR, 80)
+        level:SetPoint("LEFT", itemName, "RIGHT", 4, 0)
 
-        local upgradeEP = createAuctionHouseColumnButton(frame, "Upgrade/EP", 208)
-        upgradeEP:SetPoint("LEFT", level, "RIGHT", -2, 0)
+        local upgradeEP = createAuctionHouseColumnButton(frame, "Upgrade/EP", 202)
+        upgradeEP:SetPoint("LEFT", level, "RIGHT", 4, 0)
 
         local buyout = createAuctionHouseColumnButton(frame, _G.AUCTION_PRICE, 186)
-        buyout:SetPoint("LEFT", upgradeEP, "RIGHT", -2, 0)
+        buyout:SetPoint("LEFT", upgradeEP, "RIGHT", 4, 0)
+
+        frame.sortButtons = {name = itemName, level = level, upgrade = upgradeEP, price = buyout}
+        for key, button in pairs(frame.sortButtons) do
+            local sortKey = key
+            button:SetScript("OnClick", function()
+                if frame.OnSort then frame.OnSort(sortKey) end
+            end)
+        end
+
+        local maxCostLabel = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        maxCostLabel:SetPoint("BOTTOMLEFT", 20, 20)
+        maxCostLabel:SetText("Max cost:")
+
+        local maxCost = CreateFrame("Frame", "RXPItemUpgradeMaxCost", frame, "MoneyInputFrameTemplate")
+        maxCost:SetPoint("LEFT", maxCostLabel, "RIGHT", 8, 0)
+        frame.maxCost = maxCost
+
+        local function maxCostChanged()
+            if frame.OnMaxCostChanged then frame.OnMaxCostChanged(MoneyInputFrame_GetCopper(maxCost)) end
+        end
+
+        for _, editBox in pairs({maxCost.gold, maxCost.silver, maxCost.copper}) do
+            editBox:HookScript("OnEditFocusLost", maxCostChanged)
+            editBox:HookScript("OnEnterPressed", function(this)
+                this:ClearFocus()
+            end)
+        end
+
+        local minUpgradeLabel = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        minUpgradeLabel:SetPoint("LEFT", maxCost, "RIGHT", 12, 0)
+        minUpgradeLabel:SetText("Min upgrade:")
+
+        local minUpgrade = CreateFrame("EditBox", "RXPItemUpgradeMinUpgrade", frame, "InputBoxTemplate")
+        minUpgrade:SetSize(42, 20)
+        minUpgrade:SetPoint("LEFT", minUpgradeLabel, "RIGHT", 6, 0)
+        minUpgrade:SetAutoFocus(false)
+        minUpgrade:SetNumeric(true)
+        minUpgrade:SetMaxLetters(3)
+        frame.minUpgrade = minUpgrade
+
+        local minUpgradeSuffix = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        minUpgradeSuffix:SetPoint("LEFT", minUpgrade, "RIGHT", 3, 0)
+        minUpgradeSuffix:SetText("%")
+
+        minUpgrade:HookScript("OnEditFocusLost", function(this)
+            local value = tonumber(this:GetText()) or 0
+            this:SetNumber(value)
+            if frame.OnMinUpgradeChanged then frame.OnMinUpgradeChanged(value) end
+        end)
+        minUpgrade:HookScript("OnEnterPressed", function(this)
+            this:ClearFocus()
+        end)
 
         local closeButton = createAuctionHousePanelButton(frame, _G.CLOSE)
         closeButton:SetPoint("BOTTOMRIGHT", -6, 14)
         closeButton:SetScript("OnClick", function(this) HideUIPanel(this:GetParent():GetParent()) end)
 
         local buyButton = createAuctionHousePanelButton(frame, _G.BUYOUT)
-        buyButton:SetPoint("RIGHT", closeButton, "LEFT")
+        buyButton:SetPoint("RIGHT", closeButton, "LEFT", -4, 0)
 
         buyButton:SetScript("OnClick", function(this)
             this:Disable()
@@ -359,10 +438,11 @@ function addon.ui.v2:RegisterRXPV2AuctionHouse()
         end)
 
         local searchButton = createAuctionHousePanelButton(frame, _G.SEARCH)
-        searchButton:SetPoint("RIGHT", buyButton, "LEFT")
+        searchButton:SetPoint("RIGHT", buyButton, "LEFT", -4, 0)
 
         frame.searchButton = searchButton
         frame.buyButton = buyButton
+        frame.closeButton = closeButton
 
         local widget = {frame = frame, content = frame, type = Type}
 
