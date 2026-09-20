@@ -25,7 +25,8 @@
 ## X-Wago-ID: ZKbebq61
 
 libs\embeds_Mainline.xml [AllowLoadGameType standard]
-libs\embeds.xml [AllowLoadGameType classic,camelot]
+libs\embeds.xml [AllowLoadGameType classic]
+libs\embeds_Mainline.xml [AllowLoadGameType camelot]
 locale\locales.xml
 UI\includes.xml
 

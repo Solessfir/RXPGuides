@@ -1359,6 +1359,15 @@ end
 
 
 function addon:OnInitialize()
+    local saveLocally = false
+    if RXPCData and not RXPData then
+        saveLocally = true
+    end
+    if not RXPCData and GetCVar("questPOI") then
+        --Make sure to initialize the in-game quest helper on first login
+        --This option gets turned off when selecting the Classic option before character creation
+        SetCVar("questPOI", "1")
+    end
     local importGuidesDefault = {
         profile = {guides = {}, reports = {splits = {}}}
     }
@@ -1397,6 +1406,11 @@ function addon:OnInitialize()
     RXPCData.guideProgress = RXPCData.guideProgress or {}
     addon.CreateMetaDataTable()
     addon.settings:InitializeSettings()
+
+    if saveLocally then
+        local db = addon.settings.GetSettingsDB()
+        RXPCData.localDB = db
+    end
 
     -- Retail has enough helpers and massive UI differences
     if addon.gameVersion < 40000 then
