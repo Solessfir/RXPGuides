@@ -20,9 +20,75 @@ RXPGuides.RegisterGuide([[
 #next 14-16 Darkshore
 #defaultfor !NightElf !Hunter
 
+--Going to Darkshore if already 15
 step
     #optional
     .maxlevel 14,endOfTheGuide
+
+step
+    #ah
+    .goto 1453/0,660.28,-8814.55
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tTalk to |cRXP_FRIENDLY_Auctioneer Jaxon|r
+    >>|cRXP_BUY_Buy|r |T133970:0|t|cRXP_LOOT_[Chunks of Boar Meat]|r |cRXP_BUY_and/or|r |T133970:0|t|cRXP_LOOT_[Stringy Wolf Meat]|r |cRXP_BUY_to level your|r |T133971:0|t[Cooking] |cRXP_BUY_with later|r
+    >>|cRXP_WARN_You need 50|r |T133971:0|t[Cooking] |cRXP_WARN_for a quest in Darkshire later|r
+    >>|cRXP_WARN_If you don't want to or can't do this, skip this step|r
+    >>|cRXP_BUY_Buy the following items for faster turn ins at Westfall and Darkshore shortly:|r
+    >>|T133972:0|t[Stringy Vulture Meat]
+    >>|T133884:0|t[Murloc Eye]
+    >>|T135997:0|t[Goretusk Snout]
+    >>|T134185:0|t[Okra]
+    >>|T134341:0|t[Goretusk Liver]
+    >>|T133972:0|t[Strider Meat]
+    >>|T133912:0|t[Darkshore Grouper]
+    >>|T133970:0|t|cRXP_LOOT_[Chunks of Boar Meat]|r
+    >>|T133970:0|t|cRXP_LOOT_[Stringy Wolf Meat]|r
+    .collect 729,3,38,1 -- Stringy Vulture Meat (3)
+    .collect 730,3,38,1 -- Murloc Eye (3)
+    .collect 731,3,38,1 -- Goretusk Snout (3)
+    .collect 732,3,38,1 -- Okra (3)
+    .collect 723,8,22,1 -- Goretusk Liver (8)
+    .collect 5469,5,2178,1 -- Strider Meat (5)
+    .collect 12238,6,1141,1 -- Darkshore Grouper (6)
+    .collect 769,50,2178,1,0x20,cooking --Chunk of Boar Meat (1-50)
+    .disablecheckbox
+    .collect 2672,50,2178,1,0x20,cooking --Stringy Wolf Meat (1-50)
+    .disablecheckbox
+    .target Auctioneer Jaxon
+    .skill cooking,50,1 --XX Shows if cooking skill is <50
+step
+    #ah
+    #optional
+    .goto 1453/0,660.28,-8814.55
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tTalk to |cRXP_FRIENDLY_Auctioneer Jaxon|r
+    >>|cRXP_WARN_If you don't want to or can't do this, skip this step|r
+    >>|cRXP_BUY_Buy the following items for faster turn ins at Westfall and Darkshore shortly:|r
+    >>|T133972:0|t[Stringy Vulture Meat]
+    >>|T133884:0|t[Murloc Eye]
+    >>|T135997:0|t[Goretusk Snout]
+    >>|T134185:0|t[Okra]
+    >>|T134341:0|t[Goretusk Liver]
+    >>|T133972:0|t[Strider Meat]
+    >>|T133912:0|t[Darkshore Grouper]
+    .collect 729,3,38,1 -- Stringy Vulture Meat (3)
+    .collect 730,3,38,1 -- Murloc Eye (3)
+    .collect 731,3,38,1 -- Goretusk Snout (3)
+    .collect 732,3,38,1 -- Okra (3)
+    .collect 723,8,22,1 -- Goretusk Liver (8)
+    .collect 5469,5,2178,1 -- Strider Meat (5)
+    .collect 12238,6,1141,1 -- Darkshore Grouper (6)
+    .target Auctioneer Jaxon
+    .skill cooking,<50,1 --XX Shows if cooking skill is 50+
+step
+    .goto 1453/0,489.99,-8835.76
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tTalk to |cRXP_FRIENDLY_Dungar Longdrink|r
+    .turnin 6261 >> Turn in Dungar Longdrink
+    .accept 6285 >> Accept Return to Lewis
+    .target Dungar Longdrink
+step
+    .goto 1453/0,490.03,-8835.82
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tTalk to |cRXP_FRIENDLY_Dungar Longdrink|r
+    .fly Westfall >> Fly to Westfall
+    .target Dungar Longdrink
 
 step
     #completewith SaldeanVendor
@@ -646,9 +712,14 @@ step
     .itemcount 4471,1 --Flint and Tinder (1)
     .skill cooking,50,1
 step
-    #label DarkshoreBoat
+    #optional
     .goto 1453/0,1330.100,-8645.400
     >>|cRXP_WARN_Level your|r |T135966:0|t[First Aid] |cRXP_WARN_while waiting for the boat to Darkshore if needed|r
+    .zone Darkshore >> Take the boat to Darkshore
+    .skill firstaid,<1,1 -- shows if firstaid is >1
+step
+    #label DarkshoreBoat
+    .goto 1453/0,1330.100,-8645.400
     .zone Darkshore >> Take the boat to Darkshore
 ]])
 
@@ -666,8 +737,8 @@ RXPGuides.RegisterGuide([[
 --#groupid RXP-SRGCE-A1
 #name 14-16 Darkshore
 #displayname 11-16 Darkshore << NightElf
-#displayname 13-16 Darkshore << Dwarf Hunter
-#displayname 15-16 Darkshore << !NightElf/!Dwarf Hunter
+#displayname 13-16 Darkshore << Dwarf Hunter/Human Hunter
+#displayname 15-16 Darkshore << !NightElf/!Dwarf/!Human Hunter
 #next 16-19 Darkshore
 
 
@@ -694,6 +765,7 @@ step << NightElf
 step << !NightElf
     .goto 1439,35.743,43.710
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tTalk to |cRXP_FRIENDLY_Cerellean Whiteclaw|r
+    >>|cRXP_WARN_You may need to wait out his RP if someone else just turned in|r
     .accept 963 >> Accept For Love Eternal
     .target Cerellean Whiteclaw
     .xp <11,1
@@ -712,10 +784,6 @@ step
     .home >> Set your Hearthstone to Auberdine
     .target Innkeeper Shaussiy
     .bindlocation 442
-step
-    .goto 1439/1,503.100,6402.100
-    >>Click the |cRXP_PICK_WANTED|r poster
-    .accept 98025 >>Accept WANTED: Jai'vhanel
 step
     #optional << NightElf
     .goto 1439,37.322,43.640
@@ -740,6 +808,10 @@ step
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tTalk to |cRXP_FRIENDLY_Terenthis|r
     .accept 984 >> Accept How Big a Threat?
     .target Terenthis
+step
+    .goto 1439/1,503.100,6402.100
+    >>Click the |cRXP_PICK_WANTED|r poster
+    .accept 98025 >>Accept WANTED: Jai'vhanel
 step
     #ah
     #optional
@@ -782,7 +854,7 @@ step << !NightElf
 
 
 
-step << Dwarf Hunter
+step << Dwarf Hunter/Human Hunter
     #optional
     #completewith RabidThistle
     #loop
@@ -793,8 +865,9 @@ step << Dwarf Hunter
     .goto 1439/1,271.23,4902.88,40,0
     .goto 1439/1,438.91,5131.69,40,0
     >>|cRXP_WARN_Send your pet to attack a |cRXP_ENEMY_Thistle Bear|r. Once your pet is stunned by the |cRXP_ENEMY_Thistle Bear|r, abandon your pet and start taming it|r
-    .tame 2163 >>|cRXP_WARN_Cast|r |T132164:0|t[Tame Beast] |cRXP_WARN_on a |cRXP_ENEMY_Thistle Bear|r to tame it|r
+    .train 16828 >>|cRXP_WARN_Cast|r |T132164:0|t[Tame Beast] |cRXP_WARN_on a |cRXP_ENEMY_Thistle Bear|r to tame it|r
     .target Thistle Bear
+    .train 17255,1 --skips if they also already know bite r2
 step
     #optional
     #completewith FirstWashed
@@ -941,6 +1014,7 @@ step
 step
     .goto 1439,35.743,43.710
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tTalk to |cRXP_FRIENDLY_Cerellean Whiteclaw|r
+    >>|cRXP_WARN_You may need to wait out his RP if someone else just turned in|r
     .accept 963 >> Accept For Love Eternal
     .target Cerellean Whiteclaw
 step
@@ -1299,7 +1373,7 @@ step
     .accept 957 >> Accept Bashal'Aran
     .target Asterion
     .isQuestTurnedIn 956
-step << NightElf/Dwarf Hunter
+step << NightElf/Dwarf/Human Hunter
     #optional
     .goto 1439,44.528,36.587,0
     .goto 1439,45.334,39.393,0
@@ -1346,7 +1420,7 @@ step
     #completewith RedCrystal
     >>Kill |cRXP_ENEMY_Moonkin|r. Loot them for their |T132832:0|t|cRXP_LOOT_[Small Eggs]|r
     >>|cRXP_WARN_This will be used to level your|r |T133971:0|t[Cooking] |cRXP_WARN_to 10 later|r
-    .collect 6889,10,2178,1 --,0x20,cooking --Small Egg (1-9)
+    .collect 6889,10,2178,1,0x20,cooking --Small Egg (1-9)
     .mob Young Moonkin
     .mob Raging Moonkin
     .mob Moonkin Oracle
@@ -1357,7 +1431,7 @@ step
     #completewith AuberdineTurnin2 << NightElf/Hunter/Druid/Warrior
     >>Kill |cRXP_ENEMY_Moonkin|r. Loot them for their |T132832:0|t|cRXP_LOOT_[Small Eggs]|r
     >>|cRXP_WARN_This will be used to level your|r |T133971:0|t[Cooking] |cRXP_WARN_to 50 later|r
-    >>|cRXP_WARN_Don't go out of your way to farm this now. Just remember to hold onto the eggs and start thinking how many skillups u still need to reach 50 cooking|r
+    >>|cRXP_WARN_Don't go out of your way to farm this now. Just remember to hold onto the eggs and start thinking how many skillups you still need to reach 50 cooking|r
     .collect 6889,50,90,1,0x20,cooking --Small Egg (10-49)
     .mob Young Moonkin
     .mob Raging Moonkin
@@ -1370,7 +1444,7 @@ step
     #completewith LateTurtleStart
     >>Kill |cRXP_ENEMY_Moonkin|r. Loot them for their |T132832:0|t|cRXP_LOOT_[Small Eggs]|r
     >>|cRXP_WARN_This will be used to level your|r |T133971:0|t[Cooking] |cRXP_WARN_to 50 later|r
-    >>|cRXP_WARN_Don't go out of your way to farm this now. Just remember to hold onto the eggs and start thinking how many skillups u still need to reach 50 cooking|r
+    >>|cRXP_WARN_Don't go out of your way to farm this now. Just remember to hold onto the eggs and start thinking how many skillups you still need to reach 50 cooking|r
     .collect 6889,50,90,1,0x20,cooking --Small Egg (10-49)
     .mob Young Moonkin
     .mob Raging Moonkin
@@ -1508,7 +1582,7 @@ step << NightElf/Hunter/Druid/Warrior
     #season 0
     >>Kill |cRXP_ENEMY_Moonkin|r. Loot them for their |T132832:0|t|cRXP_LOOT_[Small Eggs]|r
     >>|cRXP_WARN_This will be used to level your|r |T133971:0|t[Cooking] |cRXP_WARN_to 50 later|r
-    >>|cRXP_WARN_Don't go out of your way to farm this now. Just remember to hold onto the eggs and start thinking how many skillups u still need to reach 50 cooking|r
+    >>|cRXP_WARN_Don't go out of your way to farm this now. Just remember to hold onto the eggs and start thinking how many skillups you still need to reach 50 cooking|r
     .collect 6889,50,90,1,0x20,cooking --Small Egg (10-49)
     .mob Young Moonkin
     .mob Raging Moonkin
@@ -1580,7 +1654,7 @@ step << NightElf/Hunter/Warrior/Druid
     .isQuestTurnedIn 4811
 step << NightElf/Hunter/Druid/Warrior
     #optional
-    #completewith EndFirstMoonstalker
+    #completewith next
     .goto 1439,37.703,43.393
     .subzone 442 >> Return to Auberdine
     .cooldown item,6948,<0,1 << !Druid
@@ -1593,13 +1667,14 @@ step << NightElf/Hunter/Druid/Warrior
     .target Sentinel Glynda Nal'Shea
     .isQuestTurnedIn 4811
 step << Hunter/Druid/Warrior
+    #optional
     #completewith AmethStart
     +|cRXP_WARN_Equip the|r |T135145:0|t[Oakthrush Staff]
     .use 15397
     .itemcount 15397,1
-    .itemStat 16,ITEM_MOD_DAMAGE_PER_SECOND_SHORT,<9.5
+    .itemStat 16,ITEM_MOD_DAMAGE_PER_SECOND_SHORT,<7.1
     .isQuestTurnedIn 4811
-
+    --reduced DPS now on staff due to it becoming a caster weapon
 
 ----Start of forced Level 14 Druid Turnin/train----
 
@@ -1704,15 +1779,6 @@ step << Druid
 
 ----Start of alternate section if early Red Crystal turnin----
 
-
-step << NightElf/Hunter/Druid/Warrior
-    #completewith EarlyBlackwood
-    #optional
-    >>Kill |cRXP_ENEMY_Moonstalker Runts|r. Loot them for their |cRXP_LOOT_Moonstalker Fangs|r
-    .complete 1002,1 -- Moonstalker Fang (6)
-    .mob Moonstalker Runt
-    .isOnQuest 1002
-    .isQuestTurnedIn 4811
 step << NightElf/Hunter/Druid/Warrior
     #optional
     #loop
@@ -1738,16 +1804,6 @@ step << NightElf/Hunter/Druid/Warrior
 step
     #optional
     #label HCHunterStart --hidden step for #include
-step << NightElf/Hunter/Druid/Warrior
-    #optional
-    #requires EarlyTreats3 << Druid --Season 2
-    #completewith EarlyTurtleStart
-    >>Kill |cRXP_ENEMY_Moonstalkers|r. Loot them for their |cRXP_LOOT_Moonstalker Fangs|r
-    .complete 1002,1 -- Moonstalker Fang (6)
-    .mob Moonstalker
-    .subzoneskip 447
-    .isOnQuest 1002
-    .isQuestTurnedIn 4811
 step << NightElf/Hunter/Druid/Warrior
     #optional
     #season 0
@@ -1905,12 +1961,6 @@ step
     .mob Wailing Highborne
     .isOnQuest 958
 step
-    .isOnQuest 98025
-    .waypoint 1439/1,-12.800,5791.300
-    >>Kill |cRXP_ENEMY_Jai'vhanel|r. Loot for it for the |cRXP_LOOT_Feather of Jai'vhanel|r
-    .complete 98025,1 --|1/1 Feather of Jai'vhanel
-    .mob Jai'vhanel
-step
     #season 0
     #label AmethStart
     .goto 1439,40.302,59.731
@@ -1937,6 +1987,12 @@ step
     >>Click the |cRXP_PICK_The Lay of Ameth'Aran|r
     .complete 953,1 --Read The Lay of Ameth'Aran (1)
     .isOnQuest 953
+step
+    .isOnQuest 98025
+    .waypoint 1439/1,-18.100,5779.800
+    >>Kill |cRXP_ENEMY_Jai'vhanel|r. Loot for it for the |cRXP_LOOT_Feather of Jai'vhanel|r
+    .complete 98025,1 --|1/1 Feather of Jai'vhanel
+    .mob Jai'vhanel
 step
     #optional
     #requires Relics
@@ -2018,7 +2074,7 @@ step
     >>|cRXP_WARN_Completing this grind will allow you to quest through the entirety of Darkshore later without having to struggle with higher level mobs|r
     >>Be careful as the |cRXP_ENEMY_Blackwood Pathfinders|r |T132152:0|t[Thrash] and can hit you up to 3 times at once
     >>|cRXP_ENEMY_Blackwood Windtalkers|r cast |T136022:0|t[Gust of Wind] a melee range stun, |cRXP_WARN_move out of melee range when they are casting it|r to avoid getting stunned
-    .xp 15+11875 >> Grind to 11875+/14400xp
+    .xp 15+10725 >> Grind to 10725+/14400xp
     .mob Blackwood Pathfinder
     .mob Blackwood Windtalker
     .itemcount 5382,<1 --Anaya's Pendant (<1)
@@ -2040,7 +2096,7 @@ step
     >>|cRXP_WARN_Completing this grind will allow you to quest through the entirety of Darkshore later without having to struggle with higher level mobs|r
     >>Be careful as the |cRXP_ENEMY_Blackwood Pathfinders|r |T132152:0|t[Thrash] and can hit you up to 3 times at once
     >>|cRXP_ENEMY_Blackwood Windtalkers|r cast |T136022:0|t[Gust of Wind] a melee range stun, |cRXP_WARN_move out of melee range when they are casting it|r to avoid getting stunned
-    .xp 15+11000 >> Grind to 11000+/14400xp
+    .xp 15+9850 >> Grind to 9850+/14400xp
     .mob Blackwood Pathfinder
     .mob Blackwood Windtalker
     .itemcount 5382,1 --Anaya's Pendant (1)
@@ -2150,7 +2206,7 @@ step
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tTalk to |cRXP_FRIENDLY_Sentinel Elissa Starbreeze|r upstairs
     .accept 965 >> Accept The Tower of Althalaxx
     .target Sentinel Elissa Starbreeze
-step << !Hunter
+step
     #optional
     #completewith Level10CookEnd
     .goto 1439,38.107,41.165
@@ -2180,8 +2236,9 @@ step
     .goto 1439,37.511,41.670
     >>|cRXP_WARN_Travel toward the |cRXP_PICK_Campfire|r on the ground|r
     +|cRXP_WARN_Start|r |T133971:0|t[Cooking] |T132834:0|t[Herb Baked Eggs]|cRXP_WARN_. Do this until your|r |T133971:0|t[Cooking] |cRXP_WARN_has reached at least level 10|r
-    >>|cRXP_WARN_Continue leveling your|r |T133971:0|t[Cooking] |cRXP_WARN_ until you run out of|r |T132832:0|t[Small Eggs] << !sod
+    >>|cRXP_WARN_Continue leveling your|r |T133971:0|t[Cooking] |cRXP_WARN_until you run out of|r |T132832:0|t[Small Eggs] << !sod
     >>|cRXP_WARN_There is a quest in Duskwood later requiring your|r |T133971:0|t[Cooking] |cRXP_WARN_to be 50 or higher. You can also cook this when you get on the boat soon|r << !sod
+    >>|cRXP_WARN_Skip this step once you've made all|r |T132834:0|t[Herb Baked Eggs]
     .skill cooking,50,1
     .itemcount 6889,1 -- Small Egg (1+)
 step
@@ -2267,7 +2324,7 @@ step
     #completewith BoatSeaCreature
     >>Kill |cRXP_ENEMY_Moonkin|r. Loot them for their |T132832:0|t|cRXP_LOOT_[Small Eggs]|r
     >>|cRXP_WARN_This will be used to level your|r |T133971:0|t[Cooking] |cRXP_WARN_to 50 later|r
-    >>|cRXP_WARN_Don't go out of your way to farm this now. Just remember to hold onto the eggs and start thinking how many skillups u still need to reach 50 cooking|r
+    >>|cRXP_WARN_Don't go out of your way to farm this now. Just remember to hold onto the eggs and start thinking how many skillups you still need to reach 50 cooking|r
     .collect 6889,50,90,1,0x20,cooking --Small Egg (10-49)
     .mob Young Moonkin
     .mob Raging Moonkin

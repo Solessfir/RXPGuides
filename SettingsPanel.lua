@@ -42,6 +42,19 @@ addon.settings.enabledBetaFeatures = {
     ["Guide Window v2"] = "Allow the Guide Window and Active Steps v2", --GuideWindow/addon.v2
 }
 
+local copy = function(t)
+    local out = {}
+    for i,v in pairs(t) do
+        if type(v) == "table" then
+            out[i] = copy(v)
+        else
+            out[i] = v
+        end
+    end
+    return out
+end
+addon.settings.copy = copy
+
 function addon.settings.OpenSettings(panelName)
 
     if _G.InCombatLockdown() then
@@ -236,7 +249,9 @@ function addon.settings:InitializeDatabase()
     if type(RXPData.defaultProfile) ~= "table" or not RXPData.defaultProfile.profile then
         RXPData.defaultProfile = false
     end
-
+    if not addon.player.beta then
+        RXPCData.localDB = nil
+    end
     settingsDB = LibStub("AceDB-3.0"):New("RXPSettings", RXPData.defaultProfile or RXPCData.localDB or settingsDBDefaults)
 
     settingsDB.RegisterCallback(self, "OnProfileChanged", "RefreshProfile")
@@ -3479,18 +3494,8 @@ function addon.settings:CreateAceOptionsPanel()
         type = 'execute',
         width = 1.5,
         func = function()
+            addon.settings:SaveFramePositions()
             addon.settings.defaultProfileKey = settingsDB:GetCurrentProfile()
-            local function copy(t)
-                local out = {}
-                for i,v in pairs(t) do
-                    if type(v) == "table" then
-                        out[i] = copy(v)
-                    else
-                        out[i] = v
-                    end
-                end
-                return out
-            end
             RXPData.defaultProfile = {profile = copy(addon.settings.profile)}
         end,
         disabled = function()
